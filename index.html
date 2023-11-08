@@ -182,7 +182,7 @@
                                 </div>
                             </div>
                         </div>
-
+                        <button id="updateTimestamp" type="submit" class="btn btn-primary">Update Timestamp</button>
                         <h3 style="margin-top: 20px;">Logs</h3>
                         <div class="card bg-light mb-3">
                             <pre id="logs" class="card-body text-monospace" style="font-family: monospace; white-space: pre-wrap;"></pre>
@@ -199,7 +199,12 @@
             const highlights = document.querySelector('.timeline-highlights');
             const fragmentTimestamps = [5, 70, 80]; // Not timestamps right now, more like offset in seconds (now - timelineDuration)
             const fragmentDuration = 10; // This will be acquired with a describeStream() call
-            const timelineDuration = 200 // (seconds) This will be set by the user
+            const timelineDuration = 300 // (seconds) This will be set by the user
+
+            var kinesisVideoArchivedContent;
+            var player;
+            var protocol;
+            var streamName;
 
             // TODO: Make continuous fragments contiguous highlight elements that are proportionally wider, rather than just using fragmentDuration for each
             function updateTimeline() {
@@ -223,9 +228,37 @@
                 })
             }
 
-            $('#start').click(function() {
-                var protocol = $('#protocol').val();
-                var streamName = $('#streamName').val();
+            function updateTimestamp() {
+                var d = new Date();
+
+                kinesisVideoArchivedContent.getDASHStreamingSessionURL({
+                    StreamName: streamName,
+                    PlaybackMode: 'LIVE_REPLAY',
+                    DASHFragmentSelector: {
+                        FragmentSelectorType: $('#fragmentSelectorType').val(),
+                        TimestampRange: {
+                            StartTimestamp: new Date(d.getTime() - 20000),
+                            EndTimestamp: null
+                        }
+                    },
+                    DisplayFragmentTimestamp: $('#displayFragmentTimestamp').val(),
+                    DisplayFragmentNumber: $('#displayFragmentNumber').val(),
+                    MaxManifestFragmentResults: parseInt($('#maxResults').val()),
+                    Expires: parseInt($('#expires').val())
+                }, function(err, response) {
+                    if (err) { return console.error(err); }
+                    console.log('DASH Streaming Session URL: ' + response.DASHStreamingSessionURL);
+
+                    console.log("Assigning new DASH session URL to player");
+                    var playerName = $('#player').val();
+                    player.attachSource(response.DASHStreamingSessionURL);
+                });
+            }
+
+
+            function handleStartClick() {
+                protocol = $('#protocol').val();
+                streamName = $('#streamName').val();
 
                 // Step 1: Configure SDK Clients
                 var options = {
@@ -236,7 +269,7 @@
                     endpoint: $('#endpoint').val() || undefined
                 }
                 var kinesisVideo = new AWS.KinesisVideo(options);
-                var kinesisVideoArchivedContent = new AWS.KinesisVideoArchivedMedia(options);
+                kinesisVideoArchivedContent = new AWS.KinesisVideoArchivedMedia(options);
 
                 // Step 2: Get a data endpoint for the stream
                 console.log('Fetching data endpoint');
@@ -275,26 +308,26 @@
                             var playerName = $('#player').val();
 
                             if (playerName === 'Shaka Player') {
-                                var playerElement = $('#shaka');
-                                playerElement.show();
+                                // var playerElement = $('#shaka');
+                                // playerElement.show();
 
-                                var player = new shaka.Player(playerElement[0]);
-                                console.log('Created Shaka Player');
+                                // var player = new shaka.Player(playerElement[0]);
+                                // console.log('Created Shaka Player');
 
-                                player.load(response.DASHStreamingSessionURL).then(function() {
-                                    console.log('Starting playback');
-                                });
-                                console.log('Set player source');
+                                // player.load(response.DASHStreamingSessionURL).then(function() {
+                                //     console.log('Starting playback');
+                                // });
+                                // console.log('Set player source');
                             } else if(playerName === 'DASH.js') {
                                 var playerElement = $('#dashjs');
                                 playerElement.show();
 
-                                var player = dashjs.MediaPlayer().create();
+                                player = dashjs.MediaPlayer().create();
                                 console.log('Created DASH.js Player');
 
                                 player.initialize(document.querySelector('#dashjs'), response.DASHStreamingSessionURL, true);
+
                                 console.log('Starting playback');
-                                console.log('Set player source');
                             }
                         });
                     } else {
@@ -359,7 +392,10 @@
                 updateTimeline();
 
                 $('.player').hide();
-            });
+            }
+
+            $('#start').click(() => handleStartClick());
+            $('#updateTimestamp').click(() => updateTimestamp());
         </script>
         <script src="ui.js"></script>
         <a href="https://github.com/aws-samples/amazon-kinesis-video-streams-media-viewer">
