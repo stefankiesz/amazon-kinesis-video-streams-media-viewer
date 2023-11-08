@@ -2,6 +2,7 @@
     <head>
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
         <link rel="stylesheet" href="loader.css">
+        <link rel="stylesheet" href="styles.css">
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.slim.min.js"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/aws-sdk/2.490.0/aws-sdk.min.js"></script>
         <link rel="icon" type="image/png" href="favicon.ico">
@@ -26,7 +27,7 @@
         <div class="container mb-3">
             <div class="row mt-3 mb-3">
                 <div class="col-md-12">
-                    <h1>Amazon Kinesis Video Streams Media Viewer</h1>
+                    <h1>TESTING Amazon Kinesis Video Streams Media Viewer</h1>
                     Documentation:
                     <a href="https://docs.aws.amazon.com/kinesisvideostreams/latest/dg/API_reader_GetHLSStreamingSessionURL.html">HLS</a>
                     -
@@ -172,6 +173,14 @@
                             <!-- DASH.js elements -->
                             <video id="dashjs" class="player" controls autoplay=""></video>
                             <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+
+                            <!-- Testing timeline changes -->
+                            <div class="timeline-container">
+                                <div class="timeline">
+                                    <div class="timeline-highlights">
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <h3 style="margin-top: 20px;">Logs</h3>
@@ -185,6 +194,34 @@
         <script>
             var DASH_PLAYERS = ['DASH.js', 'Shaka Player'];
             var HLS_PLAYERS = ['HLS.js', 'Shaka Player', 'VideoJS'];
+
+            const timeline = document.querySelector('.timeline');
+            const highlights = document.querySelector('.timeline-highlights');
+            const fragmentTimestamps = [5, 70, 80]; // Not timestamps right now, more like offset in seconds (now - timelineDuration)
+            const fragmentDuration = 10; // This will be acquired with a describeStream() call
+            const timelineDuration = 200 // (seconds) This will be set by the user
+
+            // TODO: Make continuous fragments contiguous highlight elements that are proportionally wider, rather than just using fragmentDuration for each
+            function updateTimeline() {
+                const pixelsPerSecond = timeline.offsetWidth / timelineDuration
+                var i = 0;
+                fragmentTimestamps.forEach(timestamp => {
+                    const highlightElement = document.createElement('div');
+                    //highlightElement.style.width = '${fragmentDuration * pixelsPerSecond}px';
+                    highlightElement.style.width = '30px';
+                    highlightElement.style.height = '100%';
+                    var offset = (timelineDuration-timestamp) * pixelsPerSecond;
+                    highlightElement.style.left = offset + 'px';
+                    console.log("offset: " + offset);
+                    //highlightElement.style.left = '720';
+                    highlightElement.style.backgroundColor = '#3f3';
+                    highlightElement.style.position= 'absolute';
+
+                    //position: absolute;
+
+                    highlights.appendChild(highlightElement);
+                })
+            }
 
             $('#start').click(function() {
                 var protocol = $('#protocol').val();
@@ -319,6 +356,7 @@
                         });
                     }
                 });
+                updateTimeline();
 
                 $('.player').hide();
             });

@@ -1,0 +1,19 @@
+.timeline-container {
+    height: 40px;
+    width: 100%;
+    background-color: #888;
+    /*overflow: hidden;*/
+}
+
+.timeline {
+    height: 100%;
+    width: 100%;
+    position: relative;
+}
+
+.timeline-highlights {
+    height: 100%;
+    width: 100%;
+    position: absolute;
+    /*pointer-events: none;*/
+}
