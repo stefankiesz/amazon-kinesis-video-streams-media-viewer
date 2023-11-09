@@ -198,34 +198,63 @@
             const timeline = document.querySelector('.timeline');
             const highlights = document.querySelector('.timeline-highlights');
             const fragmentTimestamps = [5, 70, 80]; // Not timestamps right now, more like offset in seconds (now - timelineDuration)
-            const fragmentDuration = 10; // This will be acquired with a describeStream() call
-            const timelineDuration = 300 // (seconds) This will be set by the user
+            //const fragmentDuration = 10 * 1000; // (milliseconds) This will be acquired with a describeStream() call
+            const timelineDuration = 3000 * 1000; // (milliseconds) This will be set by the user
+            const startTS =  new Date();
+
 
             var kinesisVideoArchivedContent;
             var player;
             var protocol;
             var streamName;
+            var fragments;
 
             // TODO: Make continuous fragments contiguous highlight elements that are proportionally wider, rather than just using fragmentDuration for each
             function updateTimeline() {
-                const pixelsPerSecond = timeline.offsetWidth / timelineDuration
-                var i = 0;
-                fragmentTimestamps.forEach(timestamp => {
+                console.log('Calling updateTimeline');
+
+                const pixelsPerMillisecond = timeline.offsetWidth / timelineDuration
+
+                var first = true;
+
+                fragments.forEach(fragment => {
                     const highlightElement = document.createElement('div');
-                    //highlightElement.style.width = '${fragmentDuration * pixelsPerSecond}px';
-                    highlightElement.style.width = '30px';
+                    const fragmentDuration = fragment.FragmentLengthInMilliseconds;
+
+                    highlightElement.style.width = (fragmentDuration * pixelsPerMillisecond) + 'px';
+                    //highlightElement.style.width = '30px';
                     highlightElement.style.height = '100%';
-                    var offset = (timelineDuration-timestamp) * pixelsPerSecond;
-                    highlightElement.style.left = offset + 'px';
-                    console.log("offset: " + offset);
-                    //highlightElement.style.left = '720';
+                    var offset = (timelineDuration - (timelineDuration - (startTS.getTime() - fragment.ProducerTimestamp.getTime()))) * pixelsPerMillisecond;
+                    highlightElement.style.left =  offset + 'px';
+                    console.log("offset in s: " + (timelineDuration - (startTS.getTime() - fragment.ProducerTimestamp.getTime())) / 1000);
+                    console.log("length in s: " + fragment.FragmentLengthInMilliseconds / 1000);
+
+                    //console.log("offset in pixels " + offset);
                     highlightElement.style.backgroundColor = '#3f3';
+                    if (first) {highlightElement.style.backgroundColor = '#f33'; first = false;}
                     highlightElement.style.position= 'absolute';
 
                     //position: absolute;
 
                     highlights.appendChild(highlightElement);
                 })
+
+                // fragmentTimestamps.forEach(timestamp => {
+                //     const highlightElement = document.createElement('div');
+                //     //highlightElement.style.width = '${fragmentDuration * pixelsPerSecond}px';
+                //     highlightElement.style.width = '30px';
+                //     highlightElement.style.height = '100%';
+                //     var offset = (timelineDuration-timestamp) * pixelsPerSecond;
+                //     highlightElement.style.left = offset + 'px';
+                //     console.log("offset: " + offset);
+                //     //highlightElement.style.left = '720';
+                //     highlightElement.style.backgroundColor = '#3f3';
+                //     highlightElement.style.position= 'absolute';
+
+                //     //position: absolute;
+
+                //     highlights.appendChild(highlightElement);
+                // })
             }
 
             function updateTimestamp() {
@@ -271,6 +300,37 @@
                 var kinesisVideo = new AWS.KinesisVideo(options);
                 kinesisVideoArchivedContent = new AWS.KinesisVideoArchivedMedia(options);
 
+                // Fetch fragment available timestamps for timeline highlights.
+                kinesisVideo.getDataEndpoint({
+                    StreamName: streamName,
+                    APIName: "LIST_FRAGMENTS"
+                }, function(err, response) {
+                    if (err) { return console.error(err); }
+                    console.log('ListFragments data endpoint: ' + response.DataEndpoint);
+                    kinesisVideoArchivedContent.endpoint = new AWS.Endpoint(response.DataEndpoint);
+
+                    kinesisVideoArchivedContent.listFragments({
+                        StreamName: streamName,
+                        FragmentSelector: {
+                            FragmentSelectorType: 'PRODUCER_TIMESTAMP',
+                            TimestampRange: {
+                                StartTimestamp: new Date(startTS.getTime() - timelineDuration),
+                                EndTimestamp: startTS
+                            }
+                        },
+                    }, function(err, response) {
+                        if (err) { return console.error(err); }
+                        console.log('Number of fragments fetched: ' + response.Fragments.length);
+                        console.log('Fragments: ' + JSON.stringify(response.Fragments, null, 4));
+                        console.log('TS: ' + response.Fragments[0].ProducerTimestamp.getTime());
+
+                        fragments = response.Fragments;
+                        fragments.sort((a, b) => a.ProducerTimestamp < b.ProducerTimestamp ? -1 : (a.ProducerTimestamp > b.ProducerTimestamp ? 1 : 0))
+                        updateTimeline();
+
+                    });
+                });
+
                 // Step 2: Get a data endpoint for the stream
                 console.log('Fetching data endpoint');
                 kinesisVideo.getDataEndpoint({
@@ -308,16 +368,16 @@
                             var playerName = $('#player').val();
 
                             if (playerName === 'Shaka Player') {
-                                // var playerElement = $('#shaka');
-                                // playerElement.show();
+                                var playerElement = $('#shaka');
+                                playerElement.show();
 
-                                // var player = new shaka.Player(playerElement[0]);
-                                // console.log('Created Shaka Player');
+                                var player = new shaka.Player(playerElement[0]);
+                                console.log('Created Shaka Player');
 
-                                // player.load(response.DASHStreamingSessionURL).then(function() {
-                                //     console.log('Starting playback');
-                                // });
-                                // console.log('Set player source');
+                                player.load(response.DASHStreamingSessionURL).then(function() {
+                                    console.log('Starting playback');
+                                });
+                                console.log('Set player source');
                             } else if(playerName === 'DASH.js') {
                                 var playerElement = $('#dashjs');
                                 playerElement.show();
@@ -389,7 +449,6 @@
                         });
                     }
                 });
-                updateTimeline();
 
                 $('.player').hide();
             }
